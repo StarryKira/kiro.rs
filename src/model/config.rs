@@ -128,6 +128,19 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<EmailConfig>,
 
+    /// Webhook 通知 URL（可选，凭据被禁用时发送 HTTP POST 通知）
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
+
+    /// Webhook 通知 JSON 模板（可选，支持变量占位符）
+    /// 可用变量: {{credential_id}}, {{email}}, {{reason}}, {{reason_zh}},
+    ///          {{available}}, {{total}}, {{timestamp}}
+    /// 未配置时使用内置默认格式
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_body: Option<String>,
+
     /// 配置文件路径（运行时元数据，不写入 JSON）
     #[serde(skip)]
     config_path: Option<PathBuf>,
@@ -193,6 +206,8 @@ impl Default for Config {
             admin_api_key: None,
             load_balancing_mode: default_load_balancing_mode(),
             email: None,
+            webhook_url: None,
+            webhook_body: None,
             config_path: None,
         }
     }

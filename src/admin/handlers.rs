@@ -10,7 +10,8 @@ use super::{
     middleware::AdminState,
     types::{
         AddCredentialRequest, SaveEmailConfigRequest, SetDisabledRequest,
-        SetLoadBalancingModeRequest, SetPriorityRequest, SuccessResponse, TestEmailRequest,
+        SetLoadBalancingModeRequest, SetPriorityRequest, SetWebhookUrlRequest, SuccessResponse,
+        TestEmailRequest, TestWebhookRequest,
     },
 };
 
@@ -152,6 +153,37 @@ pub async fn test_email(
 ) -> impl IntoResponse {
     match state.service.test_email(payload).await {
         Ok(_) => Json(SuccessResponse::new("测试邮件发送成功")).into_response(),
+        Err(e) => (e.status_code(), Json(e.into_response())).into_response(),
+    }
+}
+
+/// GET /api/admin/config/webhook
+/// 获取 Webhook URL
+pub async fn get_webhook_url(State(state): State<AdminState>) -> impl IntoResponse {
+    let response = state.service.get_webhook_url();
+    Json(response)
+}
+
+/// PUT /api/admin/config/webhook
+/// 设置 Webhook URL
+pub async fn set_webhook_url(
+    State(state): State<AdminState>,
+    Json(payload): Json<SetWebhookUrlRequest>,
+) -> impl IntoResponse {
+    match state.service.set_webhook_url(payload) {
+        Ok(response) => Json(response).into_response(),
+        Err(e) => (e.status_code(), Json(e.into_response())).into_response(),
+    }
+}
+
+/// POST /api/admin/config/webhook/test
+/// 发送测试 Webhook
+pub async fn test_webhook(
+    State(state): State<AdminState>,
+    Json(payload): Json<TestWebhookRequest>,
+) -> impl IntoResponse {
+    match state.service.test_webhook(payload).await {
+        Ok(_) => Json(SuccessResponse::new("测试 Webhook 发送成功")).into_response(),
         Err(e) => (e.status_code(), Json(e.into_response())).into_response(),
     }
 }

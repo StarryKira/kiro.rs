@@ -17,7 +17,8 @@ use super::error::AdminServiceError;
 use super::types::{
     AddCredentialRequest, AddCredentialResponse, BalanceResponse, CredentialStatusItem,
     CredentialsStatusResponse, EmailConfigResponse, LoadBalancingModeResponse,
-    SaveEmailConfigRequest, SetLoadBalancingModeRequest, TestEmailRequest,
+    SaveEmailConfigRequest, SetLoadBalancingModeRequest, SetWebhookUrlRequest, TestEmailRequest,
+    TestWebhookRequest, WebhookUrlResponse,
 };
 
 /// 余额缓存过期时间（秒），5 分钟
@@ -382,6 +383,91 @@ impl AdminService {
         EmailNotifier::send_test(&email_config)
             .await
             .map_err(|e| AdminServiceError::InternalError(format!("发送测试邮件失败: {}", e)))
+    }
+
+    // ============ Webhook 配置 ============
+
+    /// 获取 Webhook 配置
+    pub fn get_webhook_url(&self) -> WebhookUrlResponse {
+        let config = self.config.lock();
+        WebhookUrlResponse {
+            url: config.webhook_url.clone(),
+            body: config.webhook_body.clone(),
+        }
+    }
+
+    /// 设置 Webhook 配置并热更新通知器
+    pub fn set_webhook_url(
+        &self,
+        req: SetWebhookUrlRequest,
+    ) -> Result<WebhookUrlResponse, AdminServiceError> {
+        // 规范化：空字符串视为 None
+        let url = req.url.filter(|u| !u.trim().is_empty());
+        let body = req.body.filter(|b| !b.trim().is_empty());
+
+        // 创建新的 notifier（或移除）
+        match &url {
+            Some(u) => {
+                let proxy = self.token_manager.config().proxy_url.as_ref().map(|pu| {
+                    let mut p = crate::http_client::ProxyConfig::new(pu);
+                    if let (Some(user), Some(pass)) = (
+                        &self.token_manager.config().proxy_username,
+                        &self.token_manager.config().proxy_password,
+                    ) {
+                        p = p.with_auth(user, pass);
+                    }
+                    p
+                });
+                let notifier = crate::webhook::WebhookNotifier::new(
+                    u.clone(),
+                    body.clone(),
+                    proxy.as_ref(),
+                    self.token_manager.config().tls_backend,
+                )
+                .map_err(|e| {
+                    AdminServiceError::InternalError(format!("创建 Webhook 通知器失败: {}", e))
+                })?;
+                self.token_manager.update_webhook_notifier(notifier);
+            }
+            None => {
+                self.token_manager.remove_webhook_notifier();
+            }
+        }
+
+        // 持久化到配置文件
+        {
+            let mut config = self.config.lock();
+            config.webhook_url = url;
+            config.webhook_body = body;
+            config
+                .save()
+                .map_err(|e| AdminServiceError::InternalError(format!("保存配置失败: {}", e)))?;
+        }
+
+        Ok(self.get_webhook_url())
+    }
+
+    /// 发送测试 Webhook
+    pub async fn test_webhook(&self, req: TestWebhookRequest) -> Result<(), AdminServiceError> {
+        let proxy = self.token_manager.config().proxy_url.as_ref().map(|pu| {
+            let mut p = crate::http_client::ProxyConfig::new(pu);
+            if let (Some(user), Some(pass)) = (
+                &self.token_manager.config().proxy_username,
+                &self.token_manager.config().proxy_password,
+            ) {
+                p = p.with_auth(user, pass);
+            }
+            p
+        });
+
+        crate::webhook::WebhookNotifier::send_test(
+            &req.url,
+            req.body,
+            proxy.as_ref(),
+            self.token_manager.config().tls_backend,
+        )
+        .await
+        .map_err(|e| AdminServiceError::InternalError(format!("Webhook 测试失败: {}", e)))
     }
 
     // ============ 余额缓存持久化 ============

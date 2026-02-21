@@ -176,6 +176,38 @@ pub struct SetLoadBalancingModeRequest {
     pub mode: String,
 }
 
+// ============ Webhook 配置 ============
+
+/// Webhook URL 响应
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebhookUrlResponse {
+    /// 当前 Webhook URL（null 表示未配置）
+    pub url: Option<String>,
+    /// 当前 Webhook JSON 模板（null 表示使用默认格式）
+    pub body: Option<String>,
+}
+
+/// 设置 Webhook URL 请求
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetWebhookUrlRequest {
+    /// Webhook URL（null 或空字符串表示禁用）
+    pub url: Option<String>,
+    /// Webhook JSON 模板（null 或空字符串表示使用默认格式）
+    pub body: Option<String>,
+}
+
+/// 测试 Webhook 请求
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestWebhookRequest {
+    /// Webhook URL
+    pub url: String,
+    /// Webhook JSON 模板（null 或空字符串表示使用默认格式）
+    pub body: Option<String>,
+}
+
 // ============ 通用响应 ============
 
 /// 邮件配置响应（密码脱敏）

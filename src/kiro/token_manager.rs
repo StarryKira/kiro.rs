@@ -501,6 +501,8 @@ pub struct MultiTokenManager {
     stats_dirty: AtomicBool,
     /// 邮件通知器（用 Mutex 包装以支持热更新）
     email_notifier: Mutex<Option<EmailNotifier>>,
+    /// Webhook 通知器（用 Mutex 包装以支持热更新）
+    webhook_notifier: Mutex<Option<crate::webhook::WebhookNotifier>>,
 }
 
 /// 每个凭据最大 API 调用失败次数
@@ -612,6 +614,7 @@ impl MultiTokenManager {
             last_stats_save_at: Mutex::new(None),
             stats_dirty: AtomicBool::new(false),
             email_notifier: Mutex::new(None),
+            webhook_notifier: Mutex::new(None),
         };
 
         // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
@@ -1003,6 +1006,26 @@ impl MultiTokenManager {
         *self.email_notifier.lock() = None;
     }
 
+    /// 设置 Webhook 通知器（初始化时调用，Arc 包装前）
+    pub fn set_webhook_notifier(&mut self, notifier: crate::webhook::WebhookNotifier) {
+        *self.webhook_notifier.get_mut() = Some(notifier);
+    }
+
+    /// 热更新 Webhook 通知器
+    pub fn update_webhook_notifier(&self, notifier: crate::webhook::WebhookNotifier) {
+        *self.webhook_notifier.lock() = Some(notifier);
+    }
+
+    /// 移除 Webhook 通知器（禁用通知）
+    pub fn remove_webhook_notifier(&self) {
+        *self.webhook_notifier.lock() = None;
+    }
+
+    /// 获取当前 Webhook URL
+    pub fn get_webhook_url(&self) -> Option<String> {
+        self.config.webhook_url.clone()
+    }
+
     /// 统计数据文件路径
     fn stats_path(&self) -> Option<PathBuf> {
         self.cache_dir().map(|d| d.join("kiro_stats.json"))
@@ -1183,10 +1206,13 @@ impl MultiTokenManager {
         };
 
         // 在释放 entries 锁后发送通知
-        if let Some(event) = notify_event
-            && let Some(notifier) = self.email_notifier.lock().as_ref()
-        {
-            notifier.notify(event);
+        if let Some(event) = notify_event {
+            if let Some(notifier) = self.email_notifier.lock().as_ref() {
+                notifier.notify(event.clone());
+            }
+            if let Some(notifier) = self.webhook_notifier.lock().as_ref() {
+                notifier.notify(event);
+            }
         }
 
         self.save_stats_debounced();
@@ -1253,10 +1279,13 @@ impl MultiTokenManager {
         };
 
         // 在释放 entries 锁后发送通知
-        if let Some(event) = notify_event
-            && let Some(notifier) = self.email_notifier.lock().as_ref()
-        {
-            notifier.notify(event);
+        if let Some(event) = notify_event {
+            if let Some(notifier) = self.email_notifier.lock().as_ref() {
+                notifier.notify(event.clone());
+            }
+            if let Some(notifier) = self.webhook_notifier.lock().as_ref() {
+                notifier.notify(event);
+            }
         }
 
         self.save_stats_debounced();

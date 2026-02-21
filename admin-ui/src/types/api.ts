@@ -115,3 +115,9 @@ export interface TestEmailRequest {
   fromAddress: string
   toAddresses: string[]
 }
+
+// 测试 Webhook 请求
+export interface TestWebhookRequest {
+  url: string
+  body?: string | null
+}

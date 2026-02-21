@@ -8,8 +8,9 @@ use axum::{
 use super::{
     handlers::{
         add_credential, delete_credential, get_all_credentials, get_credential_balance,
-        get_email_config, get_load_balancing_mode, reset_failure_count, save_email_config,
-        set_credential_disabled, set_credential_priority, set_load_balancing_mode, test_email,
+        get_email_config, get_load_balancing_mode, get_webhook_url, reset_failure_count,
+        save_email_config, set_credential_disabled, set_credential_priority,
+        set_load_balancing_mode, set_webhook_url, test_email, test_webhook,
     },
     middleware::{AdminState, admin_auth_middleware},
 };
@@ -51,6 +52,11 @@ pub fn create_admin_router(state: AdminState) -> Router {
             get(get_email_config).put(save_email_config),
         )
         .route("/config/email/test", post(test_email))
+        .route(
+            "/config/webhook",
+            get(get_webhook_url).put(set_webhook_url),
+        )
+        .route("/config/webhook/test", post(test_webhook))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             admin_auth_middleware,

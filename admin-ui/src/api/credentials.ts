@@ -11,6 +11,7 @@ import type {
   EmailConfigResponse,
   SaveEmailConfigRequest,
   TestEmailRequest,
+  TestWebhookRequest,
 } from '@/types/api'
 
 // 创建 axios 实例
@@ -115,5 +116,23 @@ export async function saveEmailConfig(req: SaveEmailConfigRequest): Promise<Succ
 // 发送测试邮件
 export async function testEmail(req: TestEmailRequest): Promise<SuccessResponse> {
   const { data } = await api.post<SuccessResponse>('/config/email/test', req)
+  return data
+}
+
+// 获取 Webhook 配置
+export async function getWebhookUrl(): Promise<{ url: string | null; body: string | null }> {
+  const { data } = await api.get<{ url: string | null; body: string | null }>('/config/webhook')
+  return data
+}
+
+// 设置 Webhook 配置
+export async function setWebhookUrl(params: { url: string | null; body: string | null }): Promise<{ url: string | null; body: string | null }> {
+  const { data } = await api.put<{ url: string | null; body: string | null }>('/config/webhook', params)
+  return data
+}
+
+// 发送测试 Webhook
+export async function testWebhook(req: TestWebhookRequest): Promise<SuccessResponse> {
+  const { data } = await api.post<SuccessResponse>('/config/webhook/test', req)
   return data
 }

@@ -6,6 +6,7 @@ mod http_client;
 mod kiro;
 mod model;
 pub mod token;
+mod webhook;
 
 use std::sync::Arc;
 
@@ -97,6 +98,21 @@ async fn main() {
         let notifier = admin::email::EmailNotifier::new(email_config.clone());
         token_manager.set_email_notifier(notifier);
         tracing::info!("邮件通知已启用");
+    }
+
+    // 初始化 Webhook 通知器（如果配置了 webhookUrl）
+    if let Some(url) = &config.webhook_url {
+        if !url.trim().is_empty() {
+            match webhook::WebhookNotifier::new(url.clone(), config.webhook_body.clone(), proxy_config.as_ref(), config.tls_backend) {
+                Ok(notifier) => {
+                    token_manager.set_webhook_notifier(notifier);
+                    tracing::info!("Webhook 通知已启用: {}", url);
+                }
+                Err(e) => {
+                    tracing::warn!("Webhook 通知器创建失败: {}", e);
+                }
+            }
+        }
     }
 
     let token_manager = Arc::new(token_manager);

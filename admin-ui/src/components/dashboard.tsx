@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Moon, Sun, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2,Mail } from 'lucide-react'
+import { RefreshCw, LogOut, Moon, Sun, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Mail, Bell } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { storage } from '@/lib/storage'
@@ -13,7 +13,8 @@ import { BatchImportDialog } from '@/components/batch-import-dialog'
 import { KamImportDialog } from '@/components/kam-import-dialog'
 import { BatchVerifyDialog, type VerifyResult } from '@/components/batch-verify-dialog'
 import { EmailSettingsDialog } from '@/components/email-settings-dialog'
-import { useCredentials, useDeleteCredential, useResetFailure, useLoadBalancingMode, useSetLoadBalancingMode } from '@/hooks/use-credentials'
+import { WebhookSettingsDialog } from '@/components/webhook-settings-dialog'
+import { useCredentials, useDeleteCredential, useResetFailure, useLoadBalancingMode, useSetLoadBalancingMode, useWebhookUrl } from '@/hooks/use-credentials'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { BalanceResponse } from '@/types/api'
@@ -27,7 +28,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [batchImportDialogOpen, setBatchImportDialogOpen] = useState(false)
-  const [kamImportDialogOpen, setKamImportDialogOpen,emailSettingsDialogOpen, setEmailSettingsDialogOpen] = useState(false)
+  const [kamImportDialogOpen, setKamImportDialogOpen] = useState(false)
+  const [emailSettingsDialogOpen, setEmailSettingsDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
   const [verifying, setVerifying] = useState(false)
@@ -53,6 +55,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const { mutate: resetFailure } = useResetFailure()
   const { data: loadBalancingData, isLoading: isLoadingMode } = useLoadBalancingMode()
   const { mutate: setLoadBalancingMode, isPending: isSettingMode } = useSetLoadBalancingMode()
+  const { data: webhookData } = useWebhookUrl()
+  const [webhookDialogOpen, setWebhookDialogOpen] = useState(false)
 
   // 计算分页
   const totalPages = Math.ceil((data?.credentials.length || 0) / itemsPerPage)
@@ -516,6 +520,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
             >
               <Mail className="h-5 w-5" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setWebhookDialogOpen(true)}
+              title="Webhook 通知配置"
+              className={webhookData?.url ? 'text-green-600' : ''}
+            >
+              <Bell className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
@@ -739,6 +752,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
       <EmailSettingsDialog
         open={emailSettingsDialogOpen}
         onOpenChange={setEmailSettingsDialogOpen}
+      />
+
+      {/* Webhook 配置对话框 */}
+      <WebhookSettingsDialog
+        open={webhookDialogOpen}
+        onOpenChange={setWebhookDialogOpen}
       />
     </div>
   )
