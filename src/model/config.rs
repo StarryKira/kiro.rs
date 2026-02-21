@@ -30,7 +30,7 @@ pub struct EmailConfig {
     pub smtp_port: u16,
     /// SMTP 用户名
     pub smtp_username: String,
-    /// SMTP 密码
+    /// SMTP 密码（注意：以明文存储在 config.json 中，请确保文件权限安全）
     pub smtp_password: String,
     /// 是否使用 STARTTLS
     #[serde(default = "default_smtp_tls")]

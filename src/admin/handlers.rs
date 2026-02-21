@@ -138,7 +138,7 @@ pub async fn save_email_config(
     State(state): State<AdminState>,
     Json(payload): Json<SaveEmailConfigRequest>,
 ) -> impl IntoResponse {
-    match state.service.save_email_config(payload) {
+    match state.service.save_email_config(payload).await {
         Ok(_) => Json(SuccessResponse::new("邮件配置已保存")).into_response(),
         Err(e) => (e.status_code(), Json(e.into_response())).into_response(),
     }

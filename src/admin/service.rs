@@ -307,11 +307,16 @@ impl AdminService {
     }
 
     /// 保存邮件配置并热更新通知器
-    pub fn save_email_config(&self, req: SaveEmailConfigRequest) -> Result<(), AdminServiceError> {
-        let mut config = self.config.lock();
-
+    ///
+    /// 保存前会自动发送测试邮件验证 SMTP 配置有效性，
+    /// 测试失败则拒绝保存。
+    pub async fn save_email_config(
+        &self,
+        req: SaveEmailConfigRequest,
+    ) -> Result<(), AdminServiceError> {
         // 如果密码为空字符串，保留原密码
         let password = if req.smtp_password.is_empty() {
+            let config = self.config.lock();
             config
                 .email
                 .as_ref()
@@ -332,6 +337,17 @@ impl AdminService {
             to_addresses: req.to_addresses,
         };
 
+        // 启用时验证 SMTP 配置：发送测试邮件，失败则拒绝保存
+        if email_config.enabled {
+            EmailNotifier::send_test(&email_config).await.map_err(|e| {
+                AdminServiceError::InvalidCredential(format!(
+                    "SMTP 配置验证失败（测试邮件发送失败）: {}",
+                    e
+                ))
+            })?;
+        }
+
+        let mut config = self.config.lock();
         config.email = Some(email_config.clone());
         config
             .save()

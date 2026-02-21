@@ -36,34 +36,65 @@ pub enum DisableReason {
 
 /// 邮件通知器
 ///
-/// 通过 mpsc channel 异步发送邮件，可从同步代码安全调用
+/// 通过 mpsc channel 异步发送邮件，可从同步代码安全调用。
+/// 使用有界 channel（容量 64）防止 SMTP 故障时无限堆积。
 pub struct EmailNotifier {
-    sender: mpsc::UnboundedSender<CredentialDisabledEvent>,
+    sender: mpsc::Sender<CredentialDisabledEvent>,
 }
+
+/// 邮件发送最大重试次数
+const MAX_SEND_RETRIES: u32 = 3;
 
 impl EmailNotifier {
     /// 创建新的邮件通知器，启动后台消费任务
     pub fn new(config: EmailConfig) -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::channel(64);
         tokio::spawn(Self::consume_loop(config, rx));
         Self { sender: tx }
     }
 
     /// 发送凭据禁用通知（非阻塞，可从同步代码调用）
     pub fn notify(&self, event: CredentialDisabledEvent) {
-        if let Err(e) = self.sender.send(event) {
-            tracing::warn!("发送邮件通知失败（channel 已关闭）: {}", e);
+        if let Err(e) = self.sender.try_send(event) {
+            tracing::warn!("发送邮件通知失败（channel 已满或已关闭）: {}", e);
         }
     }
 
     /// 后台消费循环
-    async fn consume_loop(
-        config: EmailConfig,
-        mut rx: mpsc::UnboundedReceiver<CredentialDisabledEvent>,
-    ) {
+    async fn consume_loop(config: EmailConfig, mut rx: mpsc::Receiver<CredentialDisabledEvent>) {
         while let Some(event) = rx.recv().await {
-            if let Err(e) = Self::send_email(&config, &event).await {
-                tracing::error!("发送凭据禁用通知邮件失败: {}", e);
+            // 带重试的邮件发送
+            let mut last_err = None;
+            for attempt in 1..=MAX_SEND_RETRIES {
+                match Self::send_email(&config, &event).await {
+                    Ok(()) => {
+                        last_err = None;
+                        break;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "发送凭据禁用通知邮件失败（第 {}/{} 次）: {}",
+                            attempt,
+                            MAX_SEND_RETRIES,
+                            e
+                        );
+                        last_err = Some(e);
+                        if attempt < MAX_SEND_RETRIES {
+                            tokio::time::sleep(std::time::Duration::from_secs(
+                                2u64.pow(attempt - 1),
+                            ))
+                            .await;
+                        }
+                    }
+                }
+            }
+            if let Some(e) = last_err {
+                tracing::error!(
+                    "凭据 #{} 禁用通知邮件发送失败（已重试 {} 次）: {}",
+                    event.id,
+                    MAX_SEND_RETRIES,
+                    e
+                );
             }
         }
         tracing::debug!("邮件通知消费循环已退出");
@@ -95,6 +126,8 @@ impl EmailNotifier {
             anyhow::bail!("收件人列表为空");
         }
 
+        let mailer = Self::build_transport(config)?;
+
         for to_addr in &config.to_addresses {
             let email = Message::builder()
                 .from(config.from_address.parse().context("发件人地址格式无效")?)
@@ -106,7 +139,6 @@ impl EmailNotifier {
                 .body(body.to_string())
                 .context("构建邮件失败")?;
 
-            let mailer = Self::build_transport(config)?;
             mailer
                 .send(email)
                 .await
