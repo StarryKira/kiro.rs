@@ -330,7 +330,8 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
     <Dialog
       open={open}
       onOpenChange={(newOpen) => {
-        if (!newOpen && !importing) resetForm()
+        if (!newOpen && importing) return
+        if (!newOpen) resetForm()
         onOpenChange(newOpen)
       }}
     >
