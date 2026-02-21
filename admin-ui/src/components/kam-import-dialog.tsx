@@ -196,6 +196,11 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
           const clientSecret = cred.clientSecret?.trim() || undefined
           const authMethod = clientId && clientSecret ? 'idc' : 'social'
 
+          // idc 模式下必须同时提供 clientId 和 clientSecret
+          if (authMethod === 'social' && (clientId || clientSecret)) {
+            throw new Error('idc 模式需要同时提供 clientId 和 clientSecret')
+          }
+
           const addedCred = await addCredential({
             refreshToken: token,
             authMethod,
