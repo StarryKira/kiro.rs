@@ -628,7 +628,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               )}
               <Button onClick={() => setKamImportDialogOpen(true)} size="sm" variant="outline">
                 <FileUp className="h-4 w-4 mr-2" />
-                KAM 导入
+                Kiro Account Manager 导入
               </Button>
               <Button onClick={() => setBatchImportDialogOpen(true)} size="sm" variant="outline">
                 <Upload className="h-4 w-4 mr-2" />
