@@ -53,26 +53,49 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+// 校验元素是否为有效的 KAM 账号结构
+function isValidKamAccount(item: unknown): item is KamAccount {
+  if (typeof item !== 'object' || item === null) return false
+  const obj = item as Record<string, unknown>
+  if (typeof obj.credentials !== 'object' || obj.credentials === null) return false
+  const cred = obj.credentials as Record<string, unknown>
+  return typeof cred.refreshToken === 'string' && cred.refreshToken.trim().length > 0
+}
+
 // 解析 KAM 导出 JSON，支持单账号和多账号格式
 function parseKamJson(raw: string): KamAccount[] {
   const parsed = JSON.parse(raw)
 
+  let rawItems: unknown[]
+
   // 标准 KAM 导出格式：{ version, accounts: [...] }
   if (parsed.accounts && Array.isArray(parsed.accounts)) {
-    return parsed.accounts
+    rawItems = parsed.accounts
   }
-
   // 兜底：如果直接是账号数组
-  if (Array.isArray(parsed)) {
-    return parsed
+  else if (Array.isArray(parsed)) {
+    rawItems = parsed
   }
-
   // 单个账号对象（有 credentials 字段）
-  if (parsed.credentials && parsed.credentials.refreshToken) {
-    return [parsed]
+  else if (parsed.credentials && typeof parsed.credentials === 'object') {
+    rawItems = [parsed]
+  }
+  else {
+    throw new Error('无法识别的 KAM JSON 格式')
   }
 
-  throw new Error('无法识别的 KAM JSON 格式')
+  const validAccounts = rawItems.filter(isValidKamAccount)
+
+  if (rawItems.length > 0 && validAccounts.length === 0) {
+    throw new Error(`共 ${rawItems.length} 条记录，但均缺少有效的 credentials.refreshToken`)
+  }
+
+  if (validAccounts.length < rawItems.length) {
+    const skipped = rawItems.length - validAccounts.length
+    console.warn(`KAM 导入：跳过 ${skipped} 条缺少有效 credentials.refreshToken 的记录`)
+  }
+
+  return validAccounts
 }
 
 export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
